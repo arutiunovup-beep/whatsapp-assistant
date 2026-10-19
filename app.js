@@ -1,0 +1,29 @@
+'use strict';
+const samples=[
+{id:'late',group:'Работа',title:'Опоздание',ru:'Привет! Я сегодня немного задержусь. Сообщу, как только буду на месте.',de:'Hallo! Ich werde mich heute etwas verspäten. Ich melde mich, sobald ich da bin.'},
+{id:'schedule',group:'Работа',title:'Рабочий график',ru:'Привет! Можешь, пожалуйста, прислать мне график работы на следующую неделю? Спасибо!',de:'Hallo! Kannst du mir bitte den Dienstplan für nächste Woche schicken? Vielen Dank!'},
+{id:'bus',group:'Работа',title:'Неисправность автобуса',ru:'Привет! Хочу сообщить о неисправности автобуса. Подробности: [описание]. Номер автобуса: [номер].',de:'Hallo! Ich möchte einen Defekt am Bus melden. Details: [Beschreibung]. Busnummer: [Nummer].'},
+{id:'shift',group:'Работа',title:'Обмен сменами',ru:'Привет! Есть возможность поменяться сменами? Напиши, пожалуйста, когда у тебя будет время.',de:'Hallo! Wäre es möglich, die Dienste zu tauschen? Gib mir bitte Bescheid, wenn du Zeit hast.'},
+{id:'meeting',group:'Встречи',title:'Подтверждение встречи',ru:'Привет! Хотел уточнить, остаётся ли наша встреча в силе. Спасибо!',de:'Hallo! Ich wollte kurz nachfragen, ob unser Termin noch steht. Danke!'},
+{id:'delay',group:'Встречи',title:'Задерживаюсь',ru:'Привет! Я немного опаздываю на встречу. Извини, пожалуйста.',de:'Hallo! Ich komme etwas später zu unserem Termin. Entschuldige bitte.'},
+{id:'family',group:'Личное',title:'Как дела?',ru:'Привет! Как у тебя дела? Напиши, когда будет время.',de:'Hallo! Wie geht es dir? Schreib mir, wenn du Zeit hast.'},
+{id:'thanks',group:'Личное',title:'Спасибо',ru:'Большое спасибо за твою помощь! Я очень это ценю.',de:'Vielen Dank für deine Hilfe! Ich weiß das sehr zu schätzen.'},
+{id:'callback',group:'Личное',title:'Перезвонить',ru:'Привет! Перезвони мне, пожалуйста, когда тебе будет удобно.',de:'Hallo! Ruf mich bitte zurück, wenn es dir passt.'}
+];
+const $=id=>document.getElementById(id);let group='Все',language='de';const message=$('message');
+function notify(s){$('feedback').textContent=s;clearTimeout(notify.timer);notify.timer=setTimeout(()=>$('feedback').textContent='',4500)}
+function renderTemplates(){const groups=['Все','Работа','Встречи','Личное'];$('categories').replaceChildren(...groups.map(g=>{const b=document.createElement('button');b.textContent=g;b.className=g===group?'active':'';b.onclick=()=>{group=g;renderTemplates()};return b}));$('templates').replaceChildren(...samples.filter(s=>group==='Все'||s.group===group).map(s=>{const b=document.createElement('button');b.className='template';b.textContent=s.title;const sub=document.createElement('span');sub.textContent=s.group+' · '+language.toUpperCase();b.append(sub);b.onclick=()=>{message.value=s[language];notify('Шаблон добавлен ('+language.toUpperCase()+')')};return b}))}
+function setLanguage(l){language=l;$('ru').classList.toggle('selected',l==='ru');$('de').classList.toggle('selected',l==='de');renderTemplates()}
+$('ru').onclick=()=>setLanguage('ru');$('de').onclick=()=>setLanguage('de');
+function wrap(marker){const a=message.selectionStart,b=message.selectionEnd,v=message.value;const selected=v.slice(a,b);message.value=v.slice(0,a)+marker+(selected||'текст')+marker+v.slice(b);message.focus();message.setSelectionRange(a+marker.length,a+marker.length+(selected||'текст').length)}
+document.querySelectorAll('[data-wrap]').forEach(b=>b.addEventListener('click',()=>wrap(b.dataset.wrap)));
+$('list').onclick=()=>{const pos=message.selectionStart;message.setRangeText((pos>0&&message.value[pos-1]!=='\n'?'\n':'')+'- ',pos,pos,'end');message.focus()};
+$('date').onclick=()=>{const date=new Intl.DateTimeFormat('de-AT',{day:'2-digit',month:'2-digit',year:'numeric'}).format(new Date());message.value+=(message.value?'\n':'')+date};
+$('clear').onclick=()=>{message.value='';notify('Поле очищено')};
+$('copy').onclick=async()=>{if(!message.value.trim())return notify('Сначала введи текст');try{await navigator.clipboard.writeText(message.value);notify('Сообщение скопировано')}catch{message.focus();message.select();notify('Выделен текст. Нажми «Копировать» в меню iPhone.')}};
+$('wa').onclick=()=>{const value=message.value.trim();if(!value)return notify('Сначала введи текст');window.location.href='https://wa.me/?text='+encodeURIComponent(value)};
+const storageKey='wa-assistant-drafts-v1';function readDrafts(){try{let o=JSON.parse(localStorage.getItem(storageKey)||'[]');return Array.isArray(o)?o:[]}catch{return []}}
+function renderDrafts(){const rows=readDrafts();$('drafts').replaceChildren();if(!rows.length){const p=document.createElement('p');p.className='empty';p.textContent='Пока нет сохранённых черновиков';$('drafts').append(p);return}rows.forEach((d,i)=>{const row=document.createElement('div');row.className='draft';const name=document.createElement('span');name.className='draft-name';name.textContent=d.name;const load=document.createElement('button');load.textContent='Открыть';load.onclick=()=>{message.value=d.text;message.scrollIntoView({behavior:'smooth'});notify('Черновик загружен')};const del=document.createElement('button');del.textContent='Удалить';del.onclick=()=>{const list=readDrafts();list.splice(i,1);localStorage.setItem(storageKey,JSON.stringify(list));renderDrafts()};row.append(name,load,del);$('drafts').append(row)})}
+$('save').onclick=()=>{const value=message.value.trim();if(!value)return notify('Сначала введи текст');const name=$('draftName').value.trim()||value.slice(0,36);const rows=readDrafts();rows.unshift({name,text:value});try{localStorage.setItem(storageKey,JSON.stringify(rows.slice(0,50)));$('draftName').value='';renderDrafts();notify('Черновик сохранён на этом устройстве')}catch{notify('Не удалось сохранить: проверь настройки браузера')}};
+if('serviceWorker' in navigator && location.protocol==='https:')navigator.serviceWorker.register('./sw.js').catch(()=>{});
+renderTemplates();renderDrafts();
